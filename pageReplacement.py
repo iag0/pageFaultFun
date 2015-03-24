@@ -1,5 +1,7 @@
 
+import argparse
 import random
+from prettytable import PrettyTable
 DEBUG = False
 
 class Stream:
@@ -64,7 +66,7 @@ class PageReplacementAlgo:
 
 class Random( PageReplacementAlgo ):
     def __init__( self, cache ):
-        self.name = 'FIFO'
+        self.name = 'RND'
         PageReplacementAlgo.__init__( self, cache )
         self.replace = 0
 
@@ -74,7 +76,7 @@ class Random( PageReplacementAlgo ):
 
 class Lru( PageReplacementAlgo ):
     def __init__( self, cache ):
-        self.name = 'FIFO'
+        self.name = 'LRU'
         PageReplacementAlgo.__init__( self, cache )
         self.referenceCount = [ 0 for x in self.cache ]
 
@@ -112,7 +114,7 @@ class Fifo( PageReplacementAlgo ):
 
 class SecondChance( PageReplacementAlgo ):
     def __init__( self, cache ):
-        self.name = 'SecondChance'
+        self.name = '2ndCh'
         PageReplacementAlgo.__init__( self, cache )
         self.referenceBits = [ 0 for x in self.cache ]
 
@@ -133,7 +135,7 @@ class SecondChance( PageReplacementAlgo ):
 
 class Optimal( PageReplacementAlgo ):
     def __init__( self, cache ):
-        self.name = 'Optimal'
+        self.name = 'OPT'
         PageReplacementAlgo.__init__( self, cache )
 
     def findNext( self ):
@@ -203,6 +205,88 @@ def test():
     print stats
 
 
-test()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument( "--strategy",  choices=[ "lru", "random", "fifo", "second-chance", "optimal", "compare-all" ],
+                         default='lru', help='Simulate caching' )
+    parser.add_argument( "-n", "--number-of-times", help='Number of iterations' )
+    parser.add_argument( "--cache-size", help='Cache size' )
+    parser.add_argument( "--stream-length", help='Length of page requests' )
+
+    args = parser.parse_args()
+
+    n = 1
+    cacheSize = 4
+    slen = 25
+    if args.number_of_times:
+        n = int( args.number_of_times )
+    if args.cache_size:
+        cacheSize = int( args.cache_size )
+    if args.stream_length:
+        slen = int( args.stream_length )
+
+    algorithmsToRun = []
+    if args.strategy == "lru" or args.strategy == 'compare-all':
+        algorithmsToRun.append( Lru )
+    if args.strategy == "random" or args.strategy == 'compare-all':
+        algorithmsToRun.append( Random )
+    if args.strategy == "optimal" or args.strategy == 'compare-all':
+        algorithmsToRun.append( Optimal )
+    if args.strategy == "fifo" or args.strategy == 'compare-all':
+        algorithmsToRun.append( Fifo )
+    if args.strategy == "second-chance" or args.strategy == 'compare-all':
+        algorithmsToRun.append( SecondChance )
+
+    stats = {}
+    for i in range( n ):
+        cache = random.sample( range( 1, 11 ), cacheSize )
+        stream = Stream( 'myStream', slen )
+        stats[ i ] = {}
+        for Al in algorithmsToRun:
+            algo = Al( cache )
+            faults = algo.run( stream )
+            stream.rewind()
+            stats[ i ][ algo.name ] = faults
+        stats[ i ][ 'stream' ] = stream.sequence
+        stats[ i ][ 'cache' ] = cache
+
+    columns = [ "iter#", 'stream', 'cache' ]
+    algoNames = []
+    total = {}
+    for Al in algorithmsToRun:
+        temp = Al( [ 1, 2, 3, 4 ] )
+        algoNames.append( temp.name )
+        total[ temp.name ] = 0
+
+    algoNames.sort()
+    columns += algoNames
+    statsTable = PrettyTable( columns )
+    for i in stats:
+        rowValues = [ i, stats[ i ][ 'stream' ], stats[ i ][ 'cache' ] ]
+        for al in algoNames:
+            rowValues.append( stats[ i ][ al ] )
+            total[ al ] += stats[ i ][ al ]
+        statsTable.add_row( rowValues )
+
+    rowValues = [ "Mean", "", "" ]
+    for al in algoNames:
+        rowValues.append( total[ al ] * 1.0 / ( i + 1 ) )
+    statsTable.add_row( rowValues )
+    print statsTable
+
+
+
+
+main()
+
+
+
+
+
+
+
+
+
 
 
